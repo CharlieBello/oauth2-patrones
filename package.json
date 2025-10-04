@@ -13,11 +13,13 @@
     "bcryptjs": "^3.0.2",
     "body-parser": "^2.2.0",
     "express": "^5.1.0",
+    "express-session": "^1.18.2",
     "https": "^1.0.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.19.0",
     "oauth2orize": "^1.12.0",
     "passport": "^0.7.0",
-    "passport-http": "^0.3.0"
+    "passport-http": "^0.3.0",
+    "passport-oauth2": "^1.8.0"
   }
 }

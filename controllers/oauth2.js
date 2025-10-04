@@ -31,18 +31,30 @@ server.exchange(
     })
 );
 
+server.serializeClient(function (client, done) {
+    return done(null, client.id);
+});
+
+server.deserializeClient(function (id, done) {
+    Client.findById(id, function (err, client) {
+        if (err) { return done(err); }
+        return done(null, client);
+    });
+});
+
 exports.authorization = [
     passport.authenticate("basic", { session: false }),
-    server.authorization((clientId, redirectUri, done) => {
-        Client.findOne({ id: clientId }, (err, client) => {
-            if (err) {
-                return done(err);
-            }
+    server.authorization(async (clientId, redirectUri, done) => {
+        try {
+            const client = await Client.findOne({ id: clientId }).exec();
             if (!client) {
                 return done(null, false);
             }
+            console.log('Provided URI :', redirectUri, '\nCached URIs: ',client.redirectUris)
             return done(null, client, redirectUri);
-        });
+        } catch (error) {
+            return done(error);
+        }
     }),
     server.decision(),
 ];

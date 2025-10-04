@@ -10,7 +10,7 @@ const createClient = async () => {
     const client = new Client({
         id: 'client1',
         secret: 'secret1',
-        redirectUris: ['http://localhost:3000/callback']
+        redirectUris: ['https://localhost:3000/callback']
     });
     await client.save();
     console.log('Client created');
