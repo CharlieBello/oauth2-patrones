@@ -16,6 +16,24 @@ server.grant(
 );
 
 server.exchange(
+  oauth2orize.exchange.clientCredentials((client, scope, done) => {
+    try {
+      // Aquí podrías validar el scope y otros detalles si necesitas
+
+      const token = jwt.sign(
+        { clientId: client.id, scope: scope },
+        "secret",
+        { expiresIn: "1h" }
+      );
+      done(null, token);
+    } catch (err) {
+      done(err);
+    }
+  })
+);
+
+
+server.exchange(
     oauth2orize.exchange.code((client, code, redirectUri, done) => {
         try {
             const payload = jwt.verify(code, "secret");
