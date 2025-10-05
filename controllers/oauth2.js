@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/user");
 const Client = require("../models/client");
 const passport = require("../config/passport");
+const RefreshToken = require("../models/refreshToken");
 
 const server = oauth2orize.createServer();
 
@@ -108,6 +109,13 @@ server.exchange(oauth2orize.exchange.password(async (client, username, password,
             { expiresIn: "7d" }
         );
 
+        await RefreshToken.create({
+                    token: refreshToken,
+                    clientId: client.id,
+                    userId: user.id,
+                    expiresAt: new Date(Date.now() + 7*24*60*60*1000) // 7 días
+                });
+
         return done(null, accessToken, refreshToken, { token_type: "bearer" });
     } catch (err) {
         return done(err);
@@ -117,17 +125,74 @@ server.exchange(oauth2orize.exchange.password(async (client, username, password,
 // Exchange Refresh Token for new Access Token
 server.exchange(oauth2orize.exchange.refreshToken(async (client, refreshToken, scope, done) => {
     try {
+        // Verificar token en DB
+        const tokenRecord = await RefreshToken.findOne({ token: refreshToken });
+        if (!tokenRecord || tokenRecord.revoked) return done(null, false);
+
+        // Verificar JWT
         const payload = jwt.verify(refreshToken, "secret_refresh");
         if (payload.clientId !== client.id) return done(null, false);
 
+        // Invalidar refresh token actual
+        tokenRecord.revoked = true;
+        await tokenRecord.save();
+
+        // Generar nuevo Access Token
         const newAccessToken = jwt.sign(
             { userId: payload.userId, clientId: client.id, scope },
             "secret",
             { expiresIn: "1h" }
         );
 
-        return done(null, newAccessToken, refreshToken, { token_type: "bearer" });
+        // Generar nuevo Refresh Token
+        const newRefreshToken = jwt.sign(
+            { userId: payload.userId, clientId: client.id },
+            "secret_refresh",
+            { expiresIn: "7d" }
+        );
+
+        await RefreshToken.create({
+            token: newRefreshToken,
+            clientId: client.id,
+            userId: payload.userId,
+            expiresAt: new Date(Date.now() + 7*24*60*60*1000)
+        });
+
+        return done(null, newAccessToken, newRefreshToken, { token_type: "bearer" });
     } catch (err) {
         return done(err);
     }
 }));
+
+
+server.serializeClient(function (client, done) {
+    return done(null, client.id);
+});
+
+server.deserializeClient(function (id, done) {
+    Client.findById(id, function (err, client) {
+        if (err) { return done(err); }
+        return done(null, client);
+    });
+});
+
+
+exports.authorization = [
+    passport.authenticate("basic", { session: false }),
+    server.authorization(async (clientId, redirectUri, done) => {
+        try {
+            const client = await Client.findOne({ id: clientId }).exec();
+            if (!client) return done(null, false);
+            return done(null, client, redirectUri);
+        } catch (error) {
+            return done(error);
+        }
+    }),
+    server.decision(),
+];
+
+exports.token = [
+    passport.authenticate(["basic", "client-basic"], { session: false }),
+    server.token(),
+    server.errorHandler(),
+];
