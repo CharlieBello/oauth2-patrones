@@ -82,3 +82,52 @@ exports.token = [
     server.token(),
     server.errorHandler(),
 ];
+
+// ---- NUEVO ---- //
+// Exchange Password for Access + Refresh Token
+server.exchange(oauth2orize.exchange.password(async (client, username, password, scope, done) => {
+    try {
+        const user = await User.findOne({ username });
+        if (!user) return done(null, false);
+
+        const bcrypt = require('bcryptjs');
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) return done(null, false);
+
+        // Access Token
+        const accessToken = jwt.sign(
+            { userId: user.id, clientId: client.id, scope },
+            "secret",
+            { expiresIn: "1h" }
+        );
+
+        // Refresh Token (válido por más tiempo)
+        const refreshToken = jwt.sign(
+            { userId: user.id, clientId: client.id },
+            "secret_refresh",
+            { expiresIn: "7d" }
+        );
+
+        return done(null, accessToken, refreshToken, { token_type: "bearer" });
+    } catch (err) {
+        return done(err);
+    }
+}));
+
+// Exchange Refresh Token for new Access Token
+server.exchange(oauth2orize.exchange.refreshToken(async (client, refreshToken, scope, done) => {
+    try {
+        const payload = jwt.verify(refreshToken, "secret_refresh");
+        if (payload.clientId !== client.id) return done(null, false);
+
+        const newAccessToken = jwt.sign(
+            { userId: payload.userId, clientId: client.id, scope },
+            "secret",
+            { expiresIn: "1h" }
+        );
+
+        return done(null, newAccessToken, refreshToken, { token_type: "bearer" });
+    } catch (err) {
+        return done(err);
+    }
+}));

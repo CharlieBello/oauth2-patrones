@@ -63,3 +63,7 @@ app.use('/oauth2', (req, res, next) => {
 https.createServer(options, app).listen(3000, () => {
     console.log('HTTPS server listening on port 3000');
 });
+
+const apiRoutes = require('./api');
+app.use('/api', apiRoutes);
+
